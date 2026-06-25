@@ -137,6 +137,7 @@
     </label>
     <div id="note-big">—</div>
     <button id="btn-edit" style="margin-left:auto">NOTES ▾</button>
+    <button id="btn-fs" title="Plein écran">⛶</button>
   </div>
 
   <div id="note-editor">
@@ -537,6 +538,20 @@ btnStart.addEventListener('click', async () => {
     document.getElementById('note-big').textContent = '—';
     document.getElementById('status').textContent = 'Arrêté';
   }
+});
+
+// ── PLEIN ÉCRAN ───────────────────────────────────────────────────────────────
+const btnFs = document.getElementById('btn-fs');
+btnFs.addEventListener('click', () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen();
+  }
+});
+document.addEventListener('fullscreenchange', () => {
+  btnFs.textContent = document.fullscreenElement ? '⊡' : '⛶';
+  btnFs.title = document.fullscreenElement ? 'Quitter plein écran' : 'Plein écran';
 });
 
 })();
