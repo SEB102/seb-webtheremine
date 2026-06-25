@@ -150,7 +150,7 @@
       <select id="sel-son">
         <option value="theremin">Thérémine</option>
         <option value="martenot">Onde Martenot</option>
-        <option value="padwarm">Pad warm</option>
+        <option value="drone">Drone</option>
       </select>
     </label>
     <div id="note-big">—</div>
@@ -229,7 +229,7 @@ let activeVol = 0;
 const PRESETS_SON = {
   theremin: { oscType:'sawtooth', vibratoHz:5.2, vibratoDepth:5, filterQ:2.5, filterBase:900,  attack:0.012, release:0.07,  reverbMix:0.28, octaveShift:0  },
   martenot: { oscType:'sine',     vibratoHz:4.0, vibratoDepth:2, filterQ:0.7, filterBase:2200, attack:0.06,  release:0.15,  reverbMix:0.45, octaveShift:0  },
-  padwarm:  { oscType:'sine',     vibratoHz:4.0, vibratoDepth:0, filterQ:0.4, filterBase:3000, attack:0.9,   release:3.0,   reverbMix:0.55, octaveShift:-1 }
+  drone:    { oscType:'sawtooth', vibratoHz:0.5, vibratoDepth:0, filterQ:3.0, filterBase:280,  attack:2.0,   release:6.0,   reverbMix:0.82, octaveShift:-2 }
 };
 let sonMode = 'theremin';
 
@@ -350,7 +350,8 @@ selCam.addEventListener('change', async () => {
 
 // ── AUDIO ────────────────────────────────────────────────────────────────────
 let audioCtx, osc, vibratoOsc, vibratoGain, filter, envGain, masterGain, reverbGain;
-let padOsc1, padOsc2, padGain;
+let padOsc1, padOsc2, padOsc3, padOsc4, padGain;
+let tremoloLFO, tremoloAmp, tremoloMod;
 let audioReady = false;
 
 function makeReverb(ctx) {
@@ -400,18 +401,28 @@ async function initAudio() {
   reverbGain = audioCtx.createGain();
   reverbGain.gain.value = p.reverbMix;
 
-  padOsc1 = audioCtx.createOscillator();
-  padOsc2 = audioCtx.createOscillator();
+  padOsc1 = audioCtx.createOscillator(); padOsc2 = audioCtx.createOscillator();
+  padOsc3 = audioCtx.createOscillator(); padOsc4 = audioCtx.createOscillator();
   padGain = audioCtx.createGain();
-  padOsc1.type = 'sine'; padOsc2.type = 'sine';
-  padOsc1.detune.value = -12; padOsc2.detune.value = +12;
-  padOsc1.connect(padGain); padOsc2.connect(padGain);
-  padGain.gain.value = sonMode === 'padwarm' ? 0.7 : 0;
-  padOsc1.start(); padOsc2.start();
+  [padOsc1, padOsc2, padOsc3, padOsc4].forEach(o => { o.type = 'sawtooth'; o.connect(padGain); o.start(); });
+  padOsc1.detune.value = -20; padOsc2.detune.value = +20;
+  padOsc3.detune.value = -45; padOsc4.detune.value = +45;
+  padGain.gain.value = sonMode === 'drone' ? 0.3 : 0;
+
+  tremoloLFO = audioCtx.createOscillator();
+  tremoloLFO.type = 'sine'; tremoloLFO.frequency.value = 5.0;
+  tremoloAmp = audioCtx.createGain();
+  tremoloAmp.gain.value = sonMode === 'drone' ? 0.3 : 0;
+  tremoloMod = audioCtx.createGain();
+  tremoloMod.gain.value = sonMode === 'drone' ? 0.7 : 1;
+  tremoloLFO.connect(tremoloAmp);
+  tremoloAmp.connect(tremoloMod.gain);
+  tremoloLFO.start();
 
   osc.connect(filter);
   padGain.connect(filter);
-  filter.connect(envGain);
+  filter.connect(tremoloMod);
+  tremoloMod.connect(envGain);
   envGain.connect(masterGain);
   envGain.connect(reverb);
   reverb.connect(reverbGain);
@@ -432,9 +443,8 @@ function playNote(idx, vol) {
   if (idx >= 0 && vol > 0.02) {
     const freq = midiToFreq(notes[idx]) * Math.pow(2, p.octaveShift);
     osc.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.03);
-    if (sonMode === 'padwarm') {
-      padOsc1.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.05);
-      padOsc2.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.05);
+    if (sonMode === 'drone') {
+      [padOsc1, padOsc2, padOsc3, padOsc4].forEach(o => o.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.05));
     }
     filter.frequency.setTargetAtTime(p.filterBase + vol * 2000, audioCtx.currentTime, 0.03);
     envGain.gain.setTargetAtTime(vol * 0.7, audioCtx.currentTime, p.attack);
@@ -594,7 +604,12 @@ document.getElementById('sel-son').addEventListener('change', e => {
   vibratoGain.gain.setTargetAtTime(p.vibratoDepth, audioCtx.currentTime, 0.5);
   filter.Q.setTargetAtTime(p.filterQ, audioCtx.currentTime, 0.5);
   reverbGain.gain.setTargetAtTime(p.reverbMix, audioCtx.currentTime, 0.5);
-  if (padGain) padGain.gain.setTargetAtTime(sonMode === 'padwarm' ? 0.7 : 0, audioCtx.currentTime, 0.5);
+  const isDrone = sonMode === 'drone';
+  if (padGain) padGain.gain.setTargetAtTime(isDrone ? 0.3 : 0, audioCtx.currentTime, 0.5);
+  if (tremoloAmp) {
+    tremoloAmp.gain.setTargetAtTime(isDrone ? 0.3 : 0, audioCtx.currentTime, 0.3);
+    tremoloMod.gain.setTargetAtTime(isDrone ? 0.7 : 1, audioCtx.currentTime, 0.3);
+  }
 });
 
 // ── PLEIN ÉCRAN ───────────────────────────────────────────────────────────────
