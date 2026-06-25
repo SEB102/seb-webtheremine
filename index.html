@@ -86,6 +86,17 @@
       .note-grid { grid-template-columns: repeat(5, 1fr); }
       #note-big { font-size: 1.2em; }
     }
+    #video-wrap:fullscreen,
+    #video-wrap:-webkit-full-screen {
+      width: 100vw !important; max-width: none !important;
+      height: 100vh; background: #000;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #video-wrap:fullscreen #overlay,
+    #video-wrap:-webkit-full-screen #overlay {
+      width: min(100vw, calc(100vh * 4 / 3)) !important;
+      height: min(100vh, calc(100vw * 3 / 4)) !important;
+    }
   </style>
 </head>
 <body>
@@ -542,9 +553,10 @@ btnStart.addEventListener('click', async () => {
 
 // ── PLEIN ÉCRAN ───────────────────────────────────────────────────────────────
 const btnFs = document.getElementById('btn-fs');
+const videoWrap = document.getElementById('video-wrap');
 btnFs.addEventListener('click', () => {
   if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().catch(() => {});
+    videoWrap.requestFullscreen().catch(() => {});
   } else {
     document.exitFullscreen();
   }
