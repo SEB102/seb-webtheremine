@@ -151,6 +151,9 @@
         <option value="theremin">Thérémine</option>
         <option value="martenot">Onde Martenot</option>
         <option value="drone">Drone</option>
+        <option value="strings">String Ensemble</option>
+        <option value="flute">Flûte</option>
+        <option value="ocarina">Ocarina</option>
       </select>
     </label>
     <div id="note-big">—</div>
@@ -229,7 +232,10 @@ let activeVol = 0;
 const PRESETS_SON = {
   theremin: { oscType:'sawtooth', vibratoHz:5.2, vibratoDepth:5, filterQ:2.5, filterBase:900,  attack:0.012, release:0.07,  reverbMix:0.28, octaveShift:0,  stopTime:0.07 },
   martenot: { oscType:'sine',     vibratoHz:4.0, vibratoDepth:2, filterQ:0.7, filterBase:2200, attack:0.06,  release:0.15,  reverbMix:0.45, octaveShift:0,  stopTime:0.07 },
-  drone:    { oscType:'sawtooth', vibratoHz:0.5, vibratoDepth:0, filterQ:3.0, filterBase:280,  attack:2.0,   release:6.0,   reverbMix:0.82, octaveShift:-2, stopTime:0.25 }
+  drone:    { oscType:'sawtooth', vibratoHz:0.5, vibratoDepth:0,   filterQ:3.0, filterBase:280,  attack:2.0,   release:6.0,  reverbMix:0.82, octaveShift:-2, stopTime:0.25 },
+  strings:  { oscType:'sawtooth', vibratoHz:5.2, vibratoDepth:3,   filterQ:1.5, filterBase:700,  attack:0.3,   release:0.4,  reverbMix:0.5,  octaveShift:0,  stopTime:0.15 },
+  flute:    { oscType:'sine',     vibratoHz:5.0, vibratoDepth:2.5, filterQ:0.4, filterBase:5000, attack:0.04,  release:0.1,  reverbMix:0.32, octaveShift:1,  stopTime:0.07 },
+  ocarina:  { oscType:'sine',     vibratoHz:4.2, vibratoDepth:1,   filterQ:0.6, filterBase:2800, attack:0.06,  release:0.15, reverbMix:0.28, octaveShift:0,  stopTime:0.08 }
 };
 let sonMode = 'theremin';
 
@@ -407,7 +413,7 @@ async function initAudio() {
   [padOsc1, padOsc2, padOsc3, padOsc4].forEach(o => { o.type = 'sawtooth'; o.connect(padGain); o.start(); });
   padOsc1.detune.value = -20; padOsc2.detune.value = +20;
   padOsc3.detune.value = -45; padOsc4.detune.value = +45;
-  padGain.gain.value = sonMode === 'drone' ? 0.3 : 0;
+  padGain.gain.value = sonMode === 'drone' ? 0.3 : sonMode === 'strings' ? 0.45 : 0;
 
   tremoloLFO = audioCtx.createOscillator();
   tremoloLFO.type = 'sine'; tremoloLFO.frequency.value = 5.0;
@@ -443,7 +449,7 @@ function playNote(idx, vol) {
   if (idx >= 0 && vol > 0.02) {
     const freq = midiToFreq(notes[idx]) * Math.pow(2, p.octaveShift);
     osc.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.03);
-    if (sonMode === 'drone') {
+    if (sonMode === 'drone' || sonMode === 'strings') {
       [padOsc1, padOsc2, padOsc3, padOsc4].forEach(o => o.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.05));
     }
     filter.frequency.setTargetAtTime(p.filterBase + vol * 2000, audioCtx.currentTime, 0.03);
@@ -607,7 +613,18 @@ document.getElementById('sel-son').addEventListener('change', e => {
   filter.Q.setTargetAtTime(p.filterQ, audioCtx.currentTime, 0.5);
   reverbGain.gain.setTargetAtTime(p.reverbMix, audioCtx.currentTime, 0.5);
   const isDrone = sonMode === 'drone';
-  if (padGain) padGain.gain.setTargetAtTime(isDrone ? 0.3 : 0, audioCtx.currentTime, 0.5);
+  const isStrings = sonMode === 'strings';
+  if (isDrone) {
+    padOsc1.detune.value = -20; padOsc2.detune.value = 20;
+    padOsc3.detune.value = -45; padOsc4.detune.value = 45;
+    if (padGain) padGain.gain.setTargetAtTime(0.3, audioCtx.currentTime, 0.5);
+  } else if (isStrings) {
+    padOsc1.detune.value = -8;  padOsc2.detune.value = 8;
+    padOsc3.detune.value = -18; padOsc4.detune.value = 18;
+    if (padGain) padGain.gain.setTargetAtTime(0.45, audioCtx.currentTime, 0.5);
+  } else {
+    if (padGain) padGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.5);
+  }
   if (tremoloAmp) {
     tremoloAmp.gain.setTargetAtTime(isDrone ? 0.12 : 0, audioCtx.currentTime, 0.3);
     tremoloMod.gain.setTargetAtTime(isDrone ? 0.88 : 1, audioCtx.currentTime, 0.3);
