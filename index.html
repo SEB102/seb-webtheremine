@@ -142,10 +142,6 @@
     <label><span>Vol</span>
       <input id="rng-vol" type="range" min="0" max="1" step="0.01" value="0.7">
     </label>
-    <label>
-      <input id="chk-mirror" type="checkbox" checked>
-      <span>Miroir</span>
-    </label>
     <label><span>Son</span>
       <select id="sel-son">
         <option value="theremin">Thérémine</option>
@@ -294,10 +290,6 @@ selRoot.addEventListener('change', regenFromScale);
 
 document.getElementById('sel-hand').addEventListener('change', e => {
   handChoice = e.target.value;
-});
-
-document.getElementById('chk-mirror').addEventListener('change', e => {
-  mirrored = e.target.checked;
 });
 
 // ── CAMERA SELECTION ──────────────────────────────────────────────────────────
