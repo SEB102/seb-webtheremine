@@ -142,6 +142,12 @@
     <label><span>Vol</span>
       <input id="rng-vol" type="range" min="0" max="1" step="0.01" value="0.7">
     </label>
+    <label><span>Pan</span>
+      <input id="rng-pan" type="range" min="-1" max="1" step="0.01" value="0">
+    </label>
+    <label><span>Sortie</span>
+      <select id="sel-out"><option value="">Défaut</option></select>
+    </label>
     <label><span>Son</span>
       <select id="sel-son">
         <option value="theremin">Thérémine</option>
@@ -348,7 +354,7 @@ selCam.addEventListener('change', async () => {
 });
 
 // ── AUDIO ────────────────────────────────────────────────────────────────────
-let audioCtx, osc, vibratoOsc, vibratoGain, filter, envGain, masterGain, reverbGain;
+let audioCtx, osc, vibratoOsc, vibratoGain, filter, envGain, masterGain, reverbGain, panner;
 let padOsc1, padOsc2, padOsc3, padOsc4, padGain;
 let tremoloLFO, tremoloAmp, tremoloMod;
 let audioReady = false;
@@ -426,13 +432,43 @@ async function initAudio() {
   envGain.connect(reverb);
   reverb.connect(reverbGain);
   reverbGain.connect(masterGain);
-  masterGain.connect(audioCtx.destination);
+  panner = audioCtx.createStereoPanner();
+  panner.pan.value = parseFloat(document.getElementById('rng-pan').value) || 0;
+  masterGain.connect(panner);
+  panner.connect(audioCtx.destination);
   osc.start();
 }
 
 document.getElementById('rng-vol').addEventListener('input', e => {
   if (masterGain)
     masterGain.gain.setTargetAtTime(+e.target.value, audioCtx.currentTime, 0.05);
+});
+
+document.getElementById('rng-pan').addEventListener('input', e => {
+  if (panner) panner.pan.setTargetAtTime(+e.target.value, audioCtx.currentTime, 0.05);
+});
+
+const selOut = document.getElementById('sel-out');
+async function enumerateOutputs() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const outs = devices.filter(d => d.kind === 'audiooutput');
+    const prev = selOut.value;
+    selOut.innerHTML = '<option value="">Défaut</option>';
+    outs.forEach((out, i) => {
+      const o = document.createElement('option');
+      o.value = out.deviceId;
+      o.textContent = out.label || `Sortie ${i+1}`;
+      if (out.deviceId === prev) o.selected = true;
+      selOut.appendChild(o);
+    });
+    if (!AudioContext.prototype.setSinkId) { selOut.disabled = true; selOut.title = 'Non supporté sur Safari'; }
+  } catch(_) {}
+}
+enumerateOutputs();
+selOut.addEventListener('change', async () => {
+  if (!audioCtx?.setSinkId) return;
+  try { await audioCtx.setSinkId(selOut.value || ''); } catch(_) {}
 });
 
 function playNote(idx, vol) {
