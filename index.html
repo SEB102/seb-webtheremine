@@ -577,8 +577,7 @@ btnStart.addEventListener('click', async () => {
     frameLoop();
     btnStart.textContent = '⏹ STOP';
     btnStart.classList.add('on');
-    document.getElementById('status').textContent =
-      'Main gauche (votre côté) → pitch (X) & volume (Y haut = fort)';
+    document.getElementById('status').textContent = '';
   } else {
     running = false;
     cancelAnimationFrame(animFrame);
