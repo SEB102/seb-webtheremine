@@ -173,6 +173,7 @@
 
   <div id="status">Chargement du modèle MediaPipe…</div>
 
+<script src="https://unpkg.com/tone@15.1.22/build/Tone.js"></script>
 <script type="module">
 (async () => {
 
@@ -356,6 +357,35 @@ selCam.addEventListener('change', async () => {
 
 // ── AUDIO ────────────────────────────────────────────────────────────────────
 let audioCtx, osc, vibratoOsc, vibratoGain, filter, envGain, masterGain, reverbGain, panner;
+let pianoSampler, pianoReady = false, pianoLoading, pianoLastPitch = null;
+
+function initPiano() {
+  if (pianoLoading) return pianoLoading;
+  if (!window.Tone) return Promise.reject(new Error('Tone.js indisponible'));
+  window.Tone.setContext(audioCtx);
+  pianoLoading = new Promise((resolve, reject) => {
+    pianoSampler = new window.Tone.Sampler({
+      urls: {
+        C4: 'C4.mp3',
+        'D#4': 'Ds4.mp3',
+        'F#4': 'Fs4.mp3',
+        A4: 'A4.mp3'
+      },
+      baseUrl: 'https://tonejs.github.io/audio/salamander/',
+      attack: 0,
+      release: 1.5,
+      onload: () => {
+        pianoReady = true;
+        resolve();
+      },
+      onerror: error => {
+        console.error('Chargement du piano impossible', error);
+        reject(error);
+      }
+    }).connect(masterGain);
+  });
+  return pianoLoading;
+}
 let padOsc1, padOsc2, padOsc3, padOsc4, padGain;
 let tremoloLFO, tremoloAmp, tremoloMod;
 let audioReady = false;
@@ -438,6 +468,10 @@ async function initAudio() {
   masterGain.connect(panner);
   panner.connect(audioCtx.destination);
   osc.start();
+  const pianoPromise = initPiano().catch(error => {
+    console.error('Piano Salamander indisponible', error);
+  });
+  if (sonMode === 'piano') await pianoPromise;
 }
 
 document.getElementById('rng-vol').addEventListener('input', e => {
@@ -478,6 +512,18 @@ function playNote(idx, vol) {
   const p = PRESETS_SON[sonMode];
   if (idx >= 0 && vol > 0.02) {
     const freq = midiToFreq(notes[idx]) * Math.pow(2, p.octaveShift);
+    if (sonMode === 'piano') {
+      envGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.01);
+      if (pianoReady && freq !== pianoLastPitch) {
+        pianoSampler.triggerAttackRelease(freq, 1.2, undefined, Math.max(0.15, vol));
+        pianoLastPitch = freq;
+      }
+      activeIdx = idx;
+      activeVol = vol;
+      return;
+    }
+    if (pianoReady && pianoLastPitch !== null) pianoSampler.releaseAll();
+    pianoLastPitch = null;
     osc.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.03);
     if (sonMode === 'drone' || sonMode === 'strings') {
       [padOsc1, padOsc2, padOsc3, padOsc4].forEach(o => o.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.05));
@@ -488,6 +534,13 @@ function playNote(idx, vol) {
     activeIdx = idx;
     activeVol = vol;
   } else {
+    if (sonMode === 'piano') {
+      if (pianoReady && pianoLastPitch !== null) pianoSampler.releaseAll();
+      pianoLastPitch = null;
+      activeIdx = -1;
+      activeVol = 0;
+      return;
+    }
     envGain.gain.setTargetAtTime(0, audioCtx.currentTime, p.stopTime);
     reverbGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
     activeIdx = -1;
