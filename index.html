@@ -155,7 +155,7 @@
         <option value="drone">Drone</option>
         <option value="strings">String Ensemble</option>
         <option value="flute">Flûte</option>
-        <option value="ocarina">Ocarina</option>
+        <option value="ocarina">Ocarina</option><option value="piano">Piano</option>
       </select>
     </label>
     <div id="note-big">—</div>
@@ -237,7 +237,8 @@ const PRESETS_SON = {
   drone:    { oscType:'sawtooth', vibratoHz:0.5, vibratoDepth:0,   filterQ:3.0, filterBase:280,  attack:2.0,   release:6.0,  reverbMix:0.82, octaveShift:-2, stopTime:0.25 },
   strings:  { oscType:'sawtooth', vibratoHz:5.2, vibratoDepth:3,   filterQ:1.5, filterBase:700,  attack:0.3,   release:0.4,  reverbMix:0.5,  octaveShift:0,  stopTime:0.15 },
   flute:    { oscType:'sine',     vibratoHz:5.0, vibratoDepth:2.5, filterQ:0.4, filterBase:5000, attack:0.04,  release:0.1,  reverbMix:0.32, octaveShift:1,  stopTime:0.07 },
-  ocarina:  { oscType:'sine',     vibratoHz:4.2, vibratoDepth:1,   filterQ:0.6, filterBase:2800, attack:0.06,  release:0.15, reverbMix:0.28, octaveShift:0,  stopTime:0.08 }
+  ocarina: { oscType:'sine',     vibratoHz:4.2, vibratoDepth:1,   filterQ:0.6, filterBase:2800, attack:0.06,  release:0.15, reverbMix:0.28, octaveShift:0,  stopTime:0.08 },
+  piano:  { oscType:'triangle', vibratoHz:0, vibratoDepth:0, filterQ:1.2, filterBase:3200, attack:0.005, release:0.8, reverbMix:0.22, octaveShift:0, stopTime:0.22 }
 };
 let sonMode = 'theremin';
 
