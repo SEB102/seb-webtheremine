@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SEB-WEBTHEREMINECONTINU</title>
+  <style>
+    :root {
+      --bg: #0a0a10; --panel: #12121c; --accent: #00e87a;
+      --dim: #333; --text: #bbb;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: 'Courier New', monospace;
+      display: flex; flex-direction: column; align-items: center;
+      min-height: 100vh; gap: 6px; padding: 8px;
+    }
+    h1 {
+      color: var(--accent); font-size: 1em;
+      letter-spacing: .35em; text-transform: uppercase; padding: 6px 0;
+    }
+    #video-wrap { position: relative; line-height: 0; border: 1px solid #1a1a2a; width: 100%; max-width: 640px; }
+    #videoel { display: none; }
+    #overlay { display: block; cursor: crosshair; width: 100%; height: auto; touch-action: none; }
+    .panel {
+      background: var(--panel); border: 1px solid #1e1e30;
+      border-radius: 4px; padding: 7px 12px;
+      display: flex; flex-wrap: wrap; gap: 10px;
+      align-items: center; width: 100%; max-width: 640px;
+    }
+    button {
+      background: transparent; color: var(--accent);
+      border: 1px solid var(--accent); padding: 5px 13px;
+      cursor: pointer; font-family: monospace; font-size: .82em;
+      border-radius: 3px; transition: background .12s; white-space: nowrap;
+    }
+    button:hover { background: rgba(0,232,122,.1); }
+    button.on { background: var(--accent); color: #000; font-weight: bold; }
+    label { display: flex; align-items: center; gap: 5px; font-size: .78em; color: #555; }
+    label span { color: var(--text); }
+    select {
+      background: var(--bg); color: var(--text);
+      border: 1px solid #2a2a3a; padding: 3px 5px;
+      font-family: monospace; font-size: .78em; border-radius: 2px;
+    }
+    input[type=range] { width: 70px; accent-color: var(--accent); }
+    input[type=checkbox] { accent-color: var(--accent); width: 13px; height: 13px; }
+    #note-big {
+      font-size: 1.35em; color: var(--accent); font-weight: bold;
+      min-width: 130px; text-align: center; letter-spacing: .03em;
+    }
+    #note-big small { font-size: .55em; color: #888; font-weight: normal; }
+    #status { font-size: .7em; color: #888; text-align: center; }
+    body { touch-action: manipulation; user-select: none; }
+    @media (max-width: 500px) {
+      h1 { font-size: .8em; letter-spacing: .12em; }
+      button { padding: 9px 12px; font-size: .9em; }
+      select, input[type=range] { font-size: .85em; }
+      #note-big { font-size: 1.1em; min-width: 100px; }
+    }
+    #video-wrap:fullscreen,
+    #video-wrap:-webkit-full-screen {
+      width: 100vw !important; max-width: none !important;
+      height: 100vh; background: #000;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #video-wrap:fullscreen #overlay,
+    #video-wrap:-webkit-full-screen #overlay {
+      width: min(100vw, calc(100vh * 4 / 3)) !important;
+      height: min(100vh, calc(100vw * 3 / 4)) !important;
+    }
+  </style>
+</head>
+<body>
+  <h1>⚡ SEB-WEBTHEREMINE CONTINU</h1>
+
+  <div id="video-wrap">
+    <video id="videoel" width="640" height="480"></video>
+    <canvas id="overlay" width="640" height="480"></canvas>
+  </div>
+
+  <div class="panel">
+    <button id="btn-start">▶ START</button>
+    <label><span>Fond.</span>
+      <select id="sel-root">
+        <option value="48">DO3</option>
+        <option value="55">SOL3</option>
+        <option value="60" selected>DO4</option>
+        <option value="62">RÉ4</option>
+        <option value="64">MI4</option>
+        <option value="65">FA4</option>
+        <option value="67">SOL4</option>
+        <option value="69">LA4</option>
+        <option value="71">SI4</option>
+        <option value="72">DO5</option>
+      </select>
+    </label>
+    <label><span>Main</span>
+      <select id="sel-hand">
+        <option value="left">Gauche</option>
+        <option value="right">Droite</option>
+      </select>
+    </label>
+    <label><span>Cam</span>
+      <select id="sel-cam"><option value="">Auto</option></select>
+    </label>
+    <div id="note-big">— Hz</div>
+    <button id="btn-fs" title="Plein écran" style="margin-left:auto">⛶</button>
+  </div>
+
+  <div id="status">Chargement du modèle MediaPipe…</div>
+<script type="module">
+(async () => {
+
+// ── NOTES / FRÉQUENCES ───────────────────────────────────────────────────────
+const FR = ['DO','DO#','RÉ','RÉ#','MI','FA','FA#','SOL','SOL#','LA','LA#','SI'];
+
+function midiToName(m) {
+  if (m < 0 || m > 127) return '?';
+  return FR[m % 12] + (Math.floor(m / 12) - 1);
+}
+function midiToFreq(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+function freqToNoteName(f) {
+  if (f <= 0) return '';
+  const m = Math.round(69 + 12 * Math.log2(f / 440));
+  return midiToName(m);
+}
+
+// ── STATE ────────────────────────────────────────────────────────────────────
+// Fréquences CONTINUES sur deux octaves à partir de la fondamentale.
+// fMin = fondamentale ; fMax = fondamentale × 4 (deux octaves). Pas = 0.5 Hz.
+let rootMidi   = 60;
+let running    = false;
+let mirrored   = true;
+let handChoice = 'left';       // 'left' or 'right' from user's perspective
+let currentFreq = 0;
+let activeVol   = 0;
+
+function freqBounds() {
+  const f0 = midiToFreq(rootMidi);
+  return [f0, f0 * 4];         // deux octaves
+}
+// Position horizontale 0..1  →  fréquence quantifiée (pas = 0.5 Hz)
+function xToFreq(sx) {
+  const [fMin, fMax] = freqBounds();
+  return Math.round((fMin + sx * (fMax - fMin)) * 2) / 2;
+}
+
+// ── PRESETS SON ──────────────────────────────────────────────────────────────
+
+// Retourne true si ce côté MediaPipe correspond à la main choisie par l'utilisateur.
+// En vue miroir, MP "Left" = main droite de l'utilisateur, et vice-versa.
+function isControlHand(side) {
+  if (mirrored) {
+    return handChoice === 'left' ? side === 'Left' : side === 'Right';
+  } else {
+    return handChoice === 'left' ? side === 'Right' : side === 'Left';
+  }
+}
+
+// ── CONTRÔLES ─────────────────────────────────────────────────────────────────
+const selRoot = document.getElementById('sel-root');
+selRoot.addEventListener('change', () => { rootMidi = parseInt(selRoot.value); });
+
+document.getElementById('sel-hand').addEventListener('change', e => {
+  handChoice = e.target.value;
+});
+
+// ── CAMERA SELECTION ──────────────────────────────────────────────────────────
+const selCam = document.getElementById('sel-cam');
+let currentStream = null;
+let animFrame = null;
+
+async function enumerateCameras() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cams = devices.filter(d => d.kind === 'videoinput');
+    const prev = selCam.value;
+    selCam.innerHTML = '<option value="">Auto</option>';
+    cams.forEach((cam, i) => {
+      const o = document.createElement('option');
+      o.value = cam.deviceId;
+      o.textContent = cam.label || `Caméra ${i + 1}`;
+      if (cam.deviceId === prev) o.selected = true;
+      selCam.appendChild(o);
+    });
+  } catch (_) {}
+}
+try { const _s = await navigator.mediaDevices.getUserMedia({ video: true }); _s.getTracks().forEach(t => t.stop()); } catch(_) {}
+enumerateCameras();
+
+async function startCamera() {
+  if (currentStream) {
+    currentStream.getTracks().forEach(t => t.stop());
+    currentStream = null;
+  }
+  const constraints = { video: {
+    width: { ideal: 640 }, height: { ideal: 480 },
+    ...(selCam.value ? { deviceId: { exact: selCam.value } } : {})
+  }};
+  currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+  video.srcObject = currentStream;
+  await video.play();
+  await enumerateCameras(); // relabels after permission granted
+}
+
+function frameLoop() {
+  if (!running) return;
+  if (video.readyState >= 2 && video.currentTime !== lastT) {
+    lastT = video.currentTime;
+    drawFrame(hl.detectForVideo(video, performance.now()));
+  }
+  animFrame = requestAnimationFrame(frameLoop);
+}
+
+selCam.addEventListener('change', async () => {
+  if (running) {
+    cancelAnimationFrame(animFrame);
+    await startCamera();
+    frameLoop();
+  }
+});
+
+// ── MIDI ─────────────────────────────────────────────────────────────────────
+function playFreq(freq, vol) {
+  const active = freq > 0 && vol > 0.02;
+  window.parent.postMessage({
+    type: 'seb-midi',
+    payload: {
+      kind: 'frequency',
+      channel: 0,
+      active,
+      frequency: active ? freq : 0,
+      velocity: active ? Math.max(0, Math.min(1, vol)) : 0,
+      expression: active ? Math.max(0, Math.min(1, vol)) : 0
+    }
+  }, window.location.origin);
+  currentFreq = active ? freq : 0;
+  activeVol = active ? vol : 0;
+}
+
+// ── MEDIAPIPE ────────────────────────────────────────────────────────────────
+const video   = document.getElementById('videoel');
+const overlay = document.getElementById('overlay');
+const ctx2d   = overlay.getContext('2d');
+
+const vision = await import(
+  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/vision_bundle.mjs"
+);
+const { HandLandmarker, FilesetResolver, DrawingUtils } = vision;
+const dwUtils = new DrawingUtils(ctx2d);
+
+const fs = await FilesetResolver.forVisionTasks(
+  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm"
+);
+const hl = await HandLandmarker.createFromOptions(fs, {
+  baseOptions: {
+    modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+    delegate: 'GPU'
+  },
+  runningMode: 'VIDEO',
+  numHands: 2
+});
+
+document.getElementById('status').textContent =
+  'Sébastien Gay - juillet 2026';
+
+// ── DRAW ─────────────────────────────────────────────────────────────────────
+function drawFrame(res) {
+  const W = overlay.width, H = overlay.height;
+  const scale = W / (overlay.offsetWidth || W);
+
+  ctx2d.clearRect(0, 0, W, H);
+
+  // Vidéo (miroir si besoin)
+  ctx2d.save();
+  if (mirrored) { ctx2d.translate(W, 0); ctx2d.scale(-1, 1); }
+  ctx2d.drawImage(video, 0, 0, W, H);
+  ctx2d.restore();
+
+  // Mains + contrôle
+  let controlled = false;
+
+  if (res.landmarks && res.handednesses) {
+    for (let h = 0; h < res.handednesses.length; h++) {
+      const side   = res.handednesses[h][0].categoryName;
+      const lm     = res.landmarks[h];
+      const isCtrl = isControlHand(side);
+
+      // Centroïde en espace écran
+      const cx = lm.reduce((s, pt) => s + pt.x, 0) / lm.length;
+      const cy = lm.reduce((s, pt) => s + pt.y, 0) / lm.length;
+      const sx = mirrored ? 1 - cx : cx;
+      const px = sx * W, py = cy * H;
+      const r  = 26 * scale;
+
+      // Disque plein au centroïde
+      ctx2d.beginPath();
+      ctx2d.arc(px, py, r, 0, Math.PI * 2);
+      ctx2d.fillStyle = isCtrl ? 'rgba(0,232,122,0.85)' : 'rgba(255,102,51,0.6)';
+      ctx2d.fill();
+
+      if (isCtrl && !controlled) {
+        controlled = true;
+
+        const sxc = Math.max(0, Math.min(1, sx));
+        const freq = xToFreq(sxc);
+        const vol  = Math.max(0, Math.min(1, 1 - cy * 1.35));
+
+        playFreq(freq, vol);
+
+        const nn = freqToNoteName(freq);
+        document.getElementById('note-big').innerHTML =
+          `${freq} Hz <small>≈ ${nn}</small>`;
+
+        // Barre de volume (bord droit)
+        const bH = vol * H * 0.85;
+        ctx2d.fillStyle = `rgba(0,232,122,${0.2 + vol * 0.5})`;
+        ctx2d.fillRect(W - 10, H - bH, 8, bH);
+      }
+    }
+  }
+
+  if (!controlled && running) {
+    playFreq(0, 0);
+    document.getElementById('note-big').innerHTML = '— Hz';
+  }
+}
+
+// ── START / STOP ──────────────────────────────────────────────────────────────
+const btnStart = document.getElementById('btn-start');
+let lastT = -1;
+
+btnStart.addEventListener('click', async () => {
+  if (!running) {
+    await startCamera();
+    running = true;
+    frameLoop();
+    btnStart.textContent = '⏹ STOP';
+    btnStart.classList.add('on');
+    document.getElementById('status').textContent = '';
+  } else {
+    running = false;
+    cancelAnimationFrame(animFrame);
+    animFrame = null;
+    playFreq(0, 0);
+    if (currentStream) { currentStream.getTracks().forEach(t => t.stop()); currentStream = null; }
+    video.srcObject = null;
+    btnStart.textContent = '▶ START';
+    btnStart.classList.remove('on');
+    ctx2d.clearRect(0, 0, overlay.width, overlay.height);
+    document.getElementById('note-big').innerHTML = '— Hz';
+    document.getElementById('status').textContent = 'Arrêté';
+  }
+});
+
+// ── PLEIN ÉCRAN ───────────────────────────────────────────────────────────────
+const btnFs = document.getElementById('btn-fs');
+const videoWrap = document.getElementById('video-wrap');
+btnFs.addEventListener('click', () => {
+  if (!document.fullscreenElement) {
+    videoWrap.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen();
+  }
+});
+document.addEventListener('fullscreenchange', () => {
+  btnFs.textContent = document.fullscreenElement ? '⊡' : '⛶';
+  btnFs.title = document.fullscreenElement ? 'Quitter plein écran' : 'Plein écran';
+});
+
+})();
+</script>
+</body>
+</html>
