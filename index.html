@@ -358,6 +358,7 @@ selCam.addEventListener('change', async () => {
 // ── AUDIO ────────────────────────────────────────────────────────────────────
 let audioCtx, osc, vibratoOsc, vibratoGain, filter, envGain, masterGain, reverbGain, panner;
 let pianoSampler, pianoReady = false, pianoLoading, pianoLastPitch = null;
+let stringsSampler, stringsReady = false, stringsLoading, stringsLastPitch = null, stringsLastTrigger = -Infinity;
 
 function initPiano() {
   if (pianoLoading) return pianoLoading;
@@ -385,6 +386,39 @@ function initPiano() {
     }).connect(masterGain);
   });
   return pianoLoading;
+}
+
+function initStrings() {
+  if (stringsLoading) return stringsLoading;
+  if (!window.Tone) return Promise.reject(new Error('Tone.js indisponible'));
+  window.Tone.setContext(audioCtx);
+  stringsLoading = new Promise((resolve, reject) => {
+    stringsSampler = new window.Tone.Sampler({
+      urls: {
+        C2: 'C2.mp3',
+        A2: 'A2.mp3',
+        C3: 'C3.mp3',
+        A3: 'A3.mp3',
+        C4: 'C4.mp3',
+        A4: 'A4.mp3',
+        C5: 'C5.mp3',
+        A5: 'A5.mp3',
+        C6: 'C6.mp3'
+      },
+      baseUrl: './assets/string-ensemble/',
+      attack: 0.12,
+      release: 1.2,
+      onload: () => {
+        stringsReady = true;
+        resolve();
+      },
+      onerror: error => {
+        console.error('Chargement du String Ensemble impossible', error);
+        reject(error);
+      }
+    }).connect(masterGain);
+  });
+  return stringsLoading;
 }
 let padOsc1, padOsc2, padOsc3, padOsc4, padGain;
 let tremoloLFO, tremoloAmp, tremoloMod;
@@ -472,6 +506,10 @@ async function initAudio() {
     console.error('Piano Salamander indisponible', error);
   });
   if (sonMode === 'piano') await pianoPromise;
+  const stringsPromise = initStrings().catch(error => {
+    console.error('String Ensemble FluidR3 GM indisponible', error);
+  });
+  if (sonMode === 'strings') await stringsPromise;
 }
 
 document.getElementById('rng-vol').addEventListener('input', e => {
@@ -522,6 +560,22 @@ function playNote(idx, vol) {
       activeVol = vol;
       return;
     }
+    if (sonMode === 'strings') {
+      envGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.01);
+      const now = audioCtx.currentTime;
+      if (stringsReady && (freq !== stringsLastPitch || now - stringsLastTrigger > 2.6)) {
+        if (stringsLastPitch !== null) stringsSampler.releaseAll();
+        stringsSampler.triggerAttack(freq, undefined, Math.max(0.12, vol));
+        stringsLastPitch = freq;
+        stringsLastTrigger = now;
+      }
+      activeIdx = idx;
+      activeVol = vol;
+      return;
+    }
+    if (stringsReady && stringsLastPitch !== null) stringsSampler.releaseAll();
+    stringsLastPitch = null;
+    stringsLastTrigger = -Infinity;
     if (pianoReady && pianoLastPitch !== null) pianoSampler.releaseAll();
     pianoLastPitch = null;
     osc.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.03);
@@ -537,6 +591,14 @@ function playNote(idx, vol) {
     if (sonMode === 'piano') {
       if (pianoReady && pianoLastPitch !== null) pianoSampler.releaseAll();
       pianoLastPitch = null;
+      activeIdx = -1;
+      activeVol = 0;
+      return;
+    }
+    if (sonMode === 'strings') {
+      if (stringsReady && stringsLastPitch !== null) stringsSampler.releaseAll();
+      stringsLastPitch = null;
+      stringsLastTrigger = -Infinity;
       activeIdx = -1;
       activeVol = 0;
       return;
