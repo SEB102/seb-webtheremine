@@ -121,13 +121,22 @@
     <label><span>Fond.</span>
       <select id="sel-root">
         <option value="60">DO4</option>
+        <option value="61">DO#4/RÉb4</option>
         <option value="62">RÉ4</option>
+        <option value="63">RÉ#4/MIb4</option>
         <option value="64">MI4</option>
         <option value="65">FA4</option>
+        <option value="66">FA#4/SOLb4</option>
         <option value="67">SOL4</option>
+        <option value="68">SOL#4/LAb4</option>
         <option value="69">LA4</option>
+        <option value="70">LA#4/SIb4</option>
         <option value="71">SI4</option>
         <option value="72">DO5</option>
+        <option value="73">DO#5/RÉb5</option>
+        <option value="74">RÉ5</option>
+        <option value="75">RÉ#5/MIb5</option>
+        <option value="76">MI5</option>
       </select>
     </label>
     <label><span>Main</span>
@@ -175,7 +184,7 @@
 
   <div id="note-editor">
     <div class="note-editor-hdr">
-      <span>Notes — nom FR (ex: LA4) ou numéro MIDI</span>
+      <span>Notes — nom FR (ex: LA4, DO#4, RÉb4) ou numéro MIDI</span>
       <button id="btn-regen">↺ Regénérer</button>
     </div>
     <div class="note-grid" id="note-grid"></div>
@@ -196,11 +205,27 @@ const SCALES = {
   Dor:   [0,2,3,5,7,9,10]
 };
 
-const FR = ['DO','DO#','RÉ','RÉ#','MI','FA','FA#','SOL','SOL#','LA','LA#','SI'];
+const FR = ['DO','DO#','RÉb','RÉ','RÉ#','MIb','MI','FA','FA#','SOLb','SOL','SOL#','LAb','LA','LA#','SIb','SI'];
 
 function midiToName(m) {
   if (m < 0 || m > 127) return '?';
-  return FR[m % 12] + (Math.floor(m / 12) - 1);
+  const noteIndex = m % 12;
+  const octave = Math.floor(m / 12) - 1;
+  
+  // Notes avec altérations doubles (ex: DO# = RÉb, RÉ# = MIb, etc.)
+  const noteNames = [
+    'DO', 'DO#', 'RÉb', 'RÉ', 'RÉ#', 'MIb', 
+    'MI', 'FA', 'FA#', 'SOLb', 'SOL', 'SOL#', 
+    'LAb', 'LA', 'LA#', 'SIb', 'SI'
+  ];
+  
+  // Mappage des indices MIDI vers les noms de notes (en évitant les doublons)
+  const midiToNote = [
+    'DO', 'DO#/RÉb', 'RÉ', 'RÉ#/MIb', 'MI', 'FA', 
+    'FA#/SOLb', 'SOL', 'SOL#/LAb', 'LA', 'LA#/SIb', 'SI'
+  ];
+  
+  return midiToNote[noteIndex] + octave;
 }
 function midiToFreq(m) { return 440 * Math.pow(2, (m - 69) / 12); }
 
@@ -220,10 +245,14 @@ function parseFR(s) {
   const n = parseInt(s);
   if (!isNaN(n) && n >= 0 && n <= 127) return n;
   const up = s.trim().toUpperCase();
+  
+  // Mappage des noms de notes (avec support des altérations : DO#, RÉb, RÉ#, MIb, etc.)
   const map = [
-    ['SOL#',8],['DO#',1],['RÉ#',3],['RE#',3],['FA#',6],['LA#',10],
-    ['SOL',7],['DO',0],['RÉ',2],['RE',2],['MI',4],['FA',5],['LA',9],['SI',11]
+    ['DO',0],['DO#',1],['RÉb',1],['RÉ',2],['RE',2],['RÉ#',3],['MIb',3],
+    ['MI',4],['FA',5],['FA#',6],['SOLb',6],['SOL',7],['SOL#',8],['LAb',8],
+    ['LA',9],['LA#',10],['SIb',10],['SI',11]
   ];
+  
   for (const [name, st] of map) {
     if (up.startsWith(name)) {
       const oct = parseInt(up.slice(name.length));
