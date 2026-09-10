@@ -149,6 +149,10 @@
     <label><span>Pan</span>
       <input id="rng-pan" type="range" min="-1" max="1" step="0.01" value="0">
     </label>
+    <label title="Gain de sortie, en dB. 0 dB = neutre."><span>Gain</span>
+      <input id="rng-gain" type="range" min="0" max="6" step="0.5" value="0">
+      <span id="lbl-gain">0 dB</span>
+    </label>
     <label><span>Sortie</span>
       <select id="sel-out"><option value="">Défaut</option></select>
     </label>
@@ -410,7 +414,14 @@ selCam.addEventListener('change', async () => {
 });
 
 // ── AUDIO ────────────────────────────────────────────────────────────────────
-let audioCtx, osc, vibratoOsc, vibratoGain, filter, envGain, masterGain, reverbGain, panner;
+// Compensation de niveau : le piano (Salamander) et le string ensemble (FluidR3 GM)
+// sont des échantillons enregistrés bien plus bas que les voix synthétisées.
+// Facteurs mesurés (RMS d'attaque) pour ramener leur niveau à celui du thérémine.
+const GAIN_MAKEUP_PIANO   = 5.01;  // +14 dB
+const GAIN_MAKEUP_STRINGS = 14.13; // +23 dB
+function dbToGain(db) { return Math.pow(10, db / 20); }
+
+let audioCtx, osc, vibratoOsc, vibratoGain, filter, envGain, masterGain, reverbGain, panner, trimGain;
 let pianoSampler, pianoReady = false, pianoLoading, pianoLastPitch = null;
 let stringsSampler, stringsGain, stringsReady = false, stringsLoading, stringsLastPitch = null, stringsLastTrigger = -Infinity;
 
@@ -556,7 +567,10 @@ async function initAudio() {
   reverbGain.connect(masterGain);
   panner = audioCtx.createStereoPanner();
   panner.pan.value = parseFloat(document.getElementById('rng-pan').value) || 0;
-  masterGain.connect(panner);
+  trimGain = audioCtx.createGain();
+  trimGain.gain.value = dbToGain(parseFloat(document.getElementById('rng-gain').value));
+  masterGain.connect(trimGain);
+  trimGain.connect(panner);
   panner.connect(audioCtx.destination);
   osc.start();
   const pianoPromise = initPiano().catch(error => {
@@ -576,6 +590,12 @@ document.getElementById('rng-vol').addEventListener('input', e => {
 
 document.getElementById('rng-pan').addEventListener('input', e => {
   if (panner) panner.pan.setTargetAtTime(+e.target.value, audioCtx.currentTime, 0.05);
+});
+
+document.getElementById('rng-gain').addEventListener('input', e => {
+  const db = parseFloat(e.target.value);
+  document.getElementById('lbl-gain').textContent = (db > 0 ? '+' : '') + db.toFixed(1) + ' dB';
+  if (trimGain) trimGain.gain.setTargetAtTime(dbToGain(db), audioCtx.currentTime, 0.05);
 });
 
 const selOut = document.getElementById('sel-out');
@@ -614,7 +634,7 @@ function playNote(idx, vol) {
       stringsLastPitch = null;
       stringsLastTrigger = -Infinity;
       if (pianoReady && freq !== pianoLastPitch) {
-        pianoSampler.triggerAttackRelease(freq, 1.2, undefined, Math.max(0.15, vol));
+        pianoSampler.triggerAttackRelease(freq, 1.2, undefined, Math.max(0.15, vol) * GAIN_MAKEUP_PIANO);
         pianoLastPitch = freq;
       }
       activeIdx = idx;
@@ -625,7 +645,7 @@ function playNote(idx, vol) {
       envGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.01);
       if (pianoReady && pianoLastPitch !== null) pianoSampler.releaseAll();
       pianoLastPitch = null;
-      stringsGain.gain.setTargetAtTime(Math.max(0, Math.min(1, vol)) * 0.85, audioCtx.currentTime, 0.12);
+      stringsGain.gain.setTargetAtTime(Math.max(0, Math.min(1, vol)) * 0.85 * GAIN_MAKEUP_STRINGS, audioCtx.currentTime, 0.12);
       const now = audioCtx.currentTime;
       if (stringsReady && (freq !== stringsLastPitch || now - stringsLastTrigger > 2.9)) {
         if (stringsLastPitch !== null && stringsLastPitch !== freq) stringsSampler.releaseAll();
