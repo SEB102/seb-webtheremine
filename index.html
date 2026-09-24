@@ -761,7 +761,7 @@ function drawFrame(res) {
     ctx2d.strokeStyle = active ? '#00e87a' : '#252530';
     ctx2d.lineWidth = active ? 2 : 1;
     ctx2d.beginPath(); ctx2d.moveTo(x, 0); ctx2d.lineTo(x, H); ctx2d.stroke();
-    ctx2d.fillStyle = active ? '#00e87a' : '#2e2e44';
+    ctx2d.fillStyle = active ? '#00e87a' : (showVideo ? '#2e2e44' : '#8a8ab8');
     const fs = Math.round(10 * scale);
     ctx2d.font = active ? `bold ${fs + 1}px monospace` : `${fs}px monospace`;
     ctx2d.textAlign = 'center';
