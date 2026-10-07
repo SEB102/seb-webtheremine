@@ -727,8 +727,8 @@ const hl = await HandLandmarker.createFromOptions(fs, {
   numHands: 2
 });
 
-document.getElementById('status').textContent =
-  'Sébastien Gay - juin 2026 · Licence MIT · MediaPipe (Apache 2.0)';
+document.getElementById('status').innerHTML =
+  'Sébastien Gay - juin 2026 · Licence MIT · MediaPipe (Apache 2.0)<br>Piano : Salamander Grand Piano, Alexander Holm (CC BY 3.0) · Cordes : FluidR3 GM String Ensemble, Frank Wen &amp; Toby Smithe (CC BY 3.0)';
 
 // ── DRAW ─────────────────────────────────────────────────────────────────────
 function drawFrame(res) {
