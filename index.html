@@ -517,7 +517,7 @@ async function initAudio() {
   if (audioReady) return;
   audioReady = true;
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  await audioCtx.resume();
+  audioCtx.resume(); /* sans attendre : sinon bloqué (Safari) tant qu'il n'y a pas eu de clic */
 
   const p = PRESETS_SON[sonMode];
   osc = audioCtx.createOscillator();
